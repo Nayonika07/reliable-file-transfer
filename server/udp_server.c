@@ -10,30 +10,20 @@
 
 int main(int argc, char *argv[])
 {
-    if (argc != 4)
+    if (argc != 3)
     {
-        printf("Usage: %s <server_ip> <server_port> <file>\n", argv[0]);
+        printf("Usage: %s <server_port> <output_file>\n", argv[0]);
         return 1;
     }
 
-    const char *server_ip = argv[1];
-    int server_port = atoi(argv[2]);
-    const char *filename = argv[3];
-
-    FILE *file = fopen(filename, "rb");
-
-    if (file == NULL)
-    {
-        perror("Error opening file");
-        return 1;
-    }
+    int server_port = atoi(argv[1]);
+    const char *filename = argv[2];
 
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
     if (sockfd < 0)
     {
         perror("Error creating socket");
-        fclose(file);
         return 1;
     }
 
@@ -41,67 +31,68 @@ int main(int argc, char *argv[])
     memset(&server_addr, 0, sizeof(server_addr));
 
     server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(server_port);
 
-    if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0)
+    if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
     {
-        perror("Invalid server IP address");
-        fclose(file);
+        perror("Error binding socket");
+        close(sockfd);
+        return 1;
+    }
+
+    FILE *file = fopen(filename, "wb");
+
+    if (file == NULL)
+    {
+        perror("Error opening output file");
         close(sockfd);
         return 1;
     }
 
     char buffer[BUFFER_SIZE];
-    size_t bytes_read;
+    struct sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
 
-    printf("Sending file: %s\n", filename);
-    printf("Server: %s:%d\n", server_ip, server_port);
+    printf("Server listening on port %d...\n", server_port);
+    printf("Saving received file as: %s\n", filename);
 
-    while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, file)) > 0)
+    while (1)
     {
-        ssize_t bytes_sent = sendto(
+        ssize_t bytes_received = recvfrom(
             sockfd,
             buffer,
-            bytes_read,
+            BUFFER_SIZE,
             0,
-            (struct sockaddr *)&server_addr,
-            sizeof(server_addr)
+            (struct sockaddr *)&client_addr,
+            &client_len
         );
 
-        if (bytes_sent < 0)
+        if (bytes_received < 0)
         {
-            perror("Error sending data");
+            perror("Error receiving data");
             fclose(file);
             close(sockfd);
             return 1;
         }
 
-        printf("Sent %zd bytes\n", bytes_sent);
+        /* Check for EOF marker */
+        if (bytes_received == strlen(EOF_MARKER) &&
+            memcmp(buffer, EOF_MARKER, strlen(EOF_MARKER)) == 0)
+        {
+            printf("EOF marker received.\n");
+            break;
+        }
+
+        fwrite(buffer, 1, bytes_received, file);
+
+        printf("Received %zd bytes\n", bytes_received);
     }
-
-    /* Send EOF marker */
-    ssize_t bytes_sent = sendto(
-        sockfd,
-        EOF_MARKER,
-        strlen(EOF_MARKER),
-        0,
-        (struct sockaddr *)&server_addr,
-        sizeof(server_addr)
-    );
-
-    if (bytes_sent < 0)
-    {
-        perror("Error sending EOF marker");
-        fclose(file);
-        close(sockfd);
-        return 1;
-    }
-
-    printf("EOF marker sent.\n");
-    printf("File sent successfully.\n");
 
     fclose(file);
     close(sockfd);
+
+    printf("File received successfully.\n");
 
     return 0;
 }
