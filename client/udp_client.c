@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 
 #define BUFFER_SIZE 1400
+#define EOF_MARKER "EOF"
 
 int main(int argc, char *argv[])
 {
@@ -78,6 +79,25 @@ int main(int argc, char *argv[])
         printf("Sent %zd bytes\n", bytes_sent);
     }
 
+    /* Send EOF marker to indicate end of file */
+    ssize_t bytes_sent = sendto(
+        sockfd,
+        EOF_MARKER,
+        strlen(EOF_MARKER),
+        0,
+        (struct sockaddr *)&server_addr,
+        sizeof(server_addr)
+    );
+
+    if (bytes_sent < 0)
+    {
+        perror("Error sending EOF marker");
+        fclose(file);
+        close(sockfd);
+        return 1;
+    }
+
+    printf("EOF marker sent.\n");
     printf("File sent successfully.\n");
 
     fclose(file);
