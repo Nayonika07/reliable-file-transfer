@@ -31,7 +31,7 @@ Result: 0% packet loss (2/2 hosts received).
 
 2. UDP File Transfer
 
-A text file was sent from h1 to h2 using Python UDP sockets.
+A text file was sent from h1 to h2 using C programming and UDP sockets.
 
 Result: 71 bytes sent and received successfully. The received file contents were verified.
 
