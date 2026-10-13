@@ -1,46 +1,128 @@
-SDN-Based UDP File Transfer Using Mininet and Ryu
+# Reliable File Transfer Using UDP and SDN
 
-Objective
+## 1. Project Overview
 
-To test host connectivity in Mininet, transfer a file using UDP, and inspect the OpenFlow flow table using the Ryu SDN controller.
+This project implements file transfer using UDP sockets and integrates the application with a Software-Defined Networking (SDN) environment using Mininet, Open vSwitch, and the Ryu controller.
 
-Tools Used
+## 2. Objectives
 
-- Ubuntu
+- Implement a UDP client and server in C.
+- Transfer files between communicating hosts.
+- Create and test a Mininet network topology.
+- Use Ryu as the SDN controller with OpenFlow 1.3.
+- Test connectivity and verify file-transfer results.
+
+## 3. Technologies Used
+
+- C programming
+- UDP sockets
+- Ubuntu Linux
 - Mininet
 - Open vSwitch
 - Ryu SDN Controller
 - OpenFlow 1.3
-- C programming 
+- GitHub
 
-Network Topology
+## 4. Network Architecture
 
-- One switch: s1
-- Two hosts: h1 and h2
-- h1 IP address: 10.0.0.1
-- h2 IP address: 10.0.0.2
-- Controller: Ryu on port 6633
+The planned network consists of two hosts connected through one Open vSwitch.
 
-Experiments and Results
+- **h1:** UDP client
+- **h2:** UDP server
+- **s1:** Open vSwitch
+- **Ryu:** SDN controller
 
-1. Connectivity Test
+Communication flow:
 
-Command: "pingall"
+`UDP Client (h1) → Open vSwitch (s1) → UDP Server (h2)`
 
-Result: 0% packet loss (2/2 hosts received).
+## 5. Repository Structure
 
-2. UDP File Transfer
+- `client/`: UDP client source code
+- `server/`: UDP server source code
+- `sdn/`: SDN-related configuration and topology files
+- `tests/`: Test cases and results
+- `docs/`: Project documentation and screenshots
+- `reliability/`: Reserved for future reliability features
+- `setup-commands.md`: Setup and execution commands
+- `udp-test-results.md`: UDP testing notes
 
-A text file was sent from h1 to h2 using C programming and UDP sockets.
+## 6. Compile the UDP Programs
 
-Result: 71 bytes sent and received successfully. The received file contents were verified.
+Run these commands from the repository directory:
 
-3. OpenFlow Flow Table
+```bash
+gcc client/udp_client.c -o udp_client
+gcc server/udp_server.c -o udp_server
+```
 
-Command: "ovs-ofctl -O OpenFlow13 dump-flows s1"
+## 7. Run the UDP File Transfer
 
-The final flow-table output is saved in "final-flows.txt".
+Start the server in one terminal:
 
-Conclusion
+```bash
+./udp_server 5000 received.txt
+```
 
-The Mininet hosts communicated successfully under the Ryu controller. A UDP file transfer from h1 to h2 was completed, and the switch flow table was inspected using OpenFlow 1.3.
+Start the client in another terminal:
+
+```bash
+./udp_client 127.0.0.1 5000 test.txt
+```
+
+Here, `test.txt` is the input file, and `received.txt` is the output file.
+
+Compare the files after the transfer:
+
+```bash
+cmp test.txt received.txt
+```
+
+If the files match, `cmp` exits without printing anything.
+
+## 8. Mininet Connectivity Test
+
+Start a basic two-host topology:
+
+```bash
+sudo mn -c
+sudo mn --topo single,2
+```
+
+Inside the Mininet CLI, run:
+
+```text
+nodes
+net
+pingall
+```
+
+The expected result is successful connectivity with 0% packet loss.
+
+## 9. SDN Controller
+
+The intended controller is Ryu, using the OpenFlow 1.3 learning-switch application:
+
+```bash
+ryu-manager ryu.app.simple_switch_13
+```
+
+The switch must be configured to connect to the controller, and connectivity should be tested again.
+
+## 10. Testing and Verification
+
+The project includes Mininet connectivity evidence, flow-table output, and UDP test documentation.
+
+The final integrated test must verify that the C UDP client running on h1 transfers a file to the C UDP server running on h2 through the SDN-controlled network.
+
+## 11. Current Status
+
+- UDP client and server implemented in C.
+- Basic UDP file transfer tested locally.
+- Mininet connectivity tested.
+- Ryu controller setup and end-to-end integration must be verified in the final environment.
+
+## 12. Future Work
+
+Further reliability mechanisms and performance evaluation can be added in the later project deliverable.
+
