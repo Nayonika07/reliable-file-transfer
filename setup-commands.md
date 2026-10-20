@@ -1,55 +1,88 @@
-Mininet and Ryu Setup Commands
+# Setup and Run Instructions
 
-1. Clean up Mininet
+## 1. Requirements
+- Ubuntu/Linux
+- GCC
+- Mininet
+- Open vSwitch
+- Ryu SDN controller
 
-sudo mn -c
+## 2. Compile the C Programs
 
-2. Start the Ryu SDN Controller
+From the repository root, run:
 
-Activate the Python virtual environment:
+```bash
+gcc client/udp_client.c -o udp_client
+gcc server/udp_server.c -o udp_server
+```
 
+Make sure the compiled executables and test file are available inside the appropriate Mininet hosts.
+
+## 3. Start the Ryu Controller
+
+Activate the virtual environment where Ryu is installed:
+
+```bash
 source ~/ryu39-venv/bin/activate
-
-Start the controller:
-
 ryu-manager --verbose --ofp-tcp-listen-port 6633 ryu.app.simple_switch_13
+```
 
-Keep the controller terminal running.
+Keep this terminal open. If your virtual environment has a different path, use that path instead.
 
-3. Start Mininet
+## 4. Start Mininet
 
-Open a separate Ubuntu terminal and run:
+In a separate terminal:
 
+```bash
+sudo mn -c
 sudo mn --topo single,2 --mac --switch ovs,protocols=OpenFlow13 --controller remote,ip=127.0.0.1,port=6633
+```
 
-4. Test connectivity
+## 5. Test Connectivity
 
-At the "mininet>" prompt:
+At the `mininet>` prompt:
 
+```text
+nodes
+net
 pingall
+```
 
-Expected result: 0% packet loss.
+Expected result: all hosts can reach each other with 0% packet loss.
 
-5. Capture the final OpenFlow table
+## 6. Run the UDP File Transfer
+
+Start the server on h2:
+
+```text
+h2 ./udp_server 5000 /tmp/received.txt
+```
+
+In another Mininet prompt, send the file from h1:
+
+```text
+h1 ./udp_client 10.0.0.2 5000 test.txt
+```
+
+Ensure the executables and `test.txt` are accessible from those hosts.
+
+## 7. Verify the Switch Flow Table
 
 After generating traffic:
 
+```text
 sh ovs-ofctl -O OpenFlow13 dump-flows s1
+```
 
-Save the output:
+## 8. Verify the Received File
 
-sh ovs-ofctl -O OpenFlow13 dump-flows s1 > /tmp/final-flows.txt
+Compare the original and received files after making both accessible from the same shell:
 
-Display the saved output:
+```bash
+cmp test.txt received.txt
+```
 
-sh cat /tmp/final-flows.txt
+If `cmp` prints nothing and exits successfully, the files match.
 
-6. UDP File Transfer
-
-A Python UDP sender on h1 sends a text file to a Python UDP receiver on h2.
-
-Verified result: 71 bytes sent and received successfully, and the received file contents were checked.
-
-Conclusion
-
-The Mininet hosts communicated through an OpenFlow 1.3 switch controlled by Ryu. Connectivity, UDP file transfer, and the switch flow table were tested.
+## Notes
+The commands above document the project's C UDP client/server and Mininet/Ryu setup. Follow the actual file locations and virtual-environment path used in your tested environment.
