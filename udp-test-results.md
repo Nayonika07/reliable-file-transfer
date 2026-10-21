@@ -29,3 +29,16 @@ Screenshots of Mininet connectivity, SDN flow-table output, and file-transfer te
 
 ## 6. Conclusion
 The test verifies UDP file transfer and its operation within the Mininet network when the documented test completes successfully.
+
+
+## Successful Mininet UDP File Transfer
+
+- **Topology:** h1 → s1 → h2
+- **Protocol:** UDP
+- **Destination:** 10.0.0.2, port 5000
+- **Test file:** `test.txt`
+- **Bytes sent:** 42
+- **Bytes received:** 42
+- **File comparison:** `cmp test.txt /tmp/received.txt` completed without reporting differences.
+
+The C UDP client successfully transferred the test file to the C UDP server running on h2. The received file matched the original file.
