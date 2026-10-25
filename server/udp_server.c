@@ -1,98 +1,125 @@
-#include <stdio.h>      // File handling and printing
-#include <stdlib.h>     // atoi()
-#include <string.h>     // memset(), strlen(), memcmp()
-#include <unistd.h>     // close()
-#include <arpa/inet.h>  // IPv4 address tools and htons()
-#include <sys/socket.h> // socket(), bind(), recvfrom()
 
-#define BUFFER_SIZE 1400 // Maximum bytes per datagram
-#define EOF_MARKER "EOF" // Marks the end of the file
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 
-int main(int argc, char *argv[]) // Program entry point
+#define BUFFER_SIZE 1400
+#define DATA_SIZE (BUFFER_SIZE - 8)
+#define TIMEOUT_SEC 2
+
+typedef struct {
+    uint32_t seq;
+    uint32_t len;
+    char data[DATA_SIZE];
+} Packet;
+
+typedef struct {
+    uint32_t ack;
+} Ack;
+
+int main(int argc, char *argv[])
 {
-    if (argc != 3) // Expect port and output filename
-    {
-        printf("Usage: %s <server_port> <output_file>\n", argv[0]); // Show usage
-        return 1; // Exit with error
+    if (argc != 3) {
+        fprintf(stderr, "Usage: %s <server_port> <output_file>\n", argv[0]);
+        return 1;
     }
 
-    int server_port = atoi(argv[1]); // Convert port to integer
-    const char *filename = argv[2]; // Output filename
+    int port = atoi(argv[1]);
+    const char *filename = argv[2];
 
-    int sockfd = socket(AF_INET, SOCK_DGRAM, 0); // Create IPv4 UDP socket
-
-    if (sockfd < 0) // Check socket creation failure
-    {
-        perror("Error creating socket"); // Print error
-        return 1; // Exit with error
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        perror("socket");
+        return 1;
     }
 
-    struct sockaddr_in server_addr; // Store server address
-    memset(&server_addr, 0, sizeof(server_addr)); // Clear address structure
+    struct timeval timeout = {TIMEOUT_SEC, 0};
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 
-    server_addr.sin_family = AF_INET; // Use IPv4
-    server_addr.sin_addr.s_addr = INADDR_ANY; // Listen on all local IPv4 interfaces
-    server_addr.sin_port = htons(server_port); // Convert port to network byte order
+    struct sockaddr_in addr = {0}, client = {0};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_port = htons(port);
 
-    if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) // Bind socket to port
-    {
-        perror("Error binding socket"); // Print error
-        close(sockfd); // Close socket
-        return 1; // Exit with error
+    if (bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        perror("bind");
+        close(sockfd);
+        return 1;
     }
 
-    FILE *file = fopen(filename, "wb"); // Open output file for binary writing
-
-    if (file == NULL) // Check file opening failure
-    {
-        perror("Error opening output file"); // Print error
-        close(sockfd); // Close socket
-        return 1; // Exit with error
+    FILE *file = fopen(filename, "wb");
+    if (!file) {
+        perror("fopen");
+        close(sockfd);
+        return 1;
     }
 
-    char buffer[BUFFER_SIZE]; // Hold one received chunk
-    struct sockaddr_in client_addr; // Store sender's address
-    socklen_t client_len = sizeof(client_addr); // Sender address structure size
+    uint32_t expected_seq = 0;
+    socklen_t client_len = sizeof(client);
 
-    printf("Server listening on port %d...\n", server_port); // Show listening port
-    printf("Saving received file as: %s\n", filename); // Show output filename
+    printf("Server listening on port %d\n", port);
+    printf("Saving received file as: %s\n", filename);
 
-    while (1) // Receive datagrams until EOF or error
-    {
-        ssize_t bytes_received = recvfrom( // Receive one UDP datagram
-            sockfd, // Socket receiving data
-            buffer, // Store received bytes here
-            BUFFER_SIZE, // Maximum bytes to receive
-            0, // Default flags
-            (struct sockaddr *)&client_addr, // Record sender address
-            &client_len // Address structure size
-        );
+    for (;;) {
+        Packet packet;
+        ssize_t n = recvfrom(sockfd, &packet, sizeof(packet), 0,
+                             (struct sockaddr *)&client, &client_len);
 
-        if (bytes_received < 0) // Check receive error
-        {
-            perror("Error receiving data"); // Print error
-            fclose(file); // Close output file
-            close(sockfd); // Close socket
-            return 1; // Exit with error
+        if (n < 0) {
+            continue;
         }
 
-        /* Check whether this datagram is the EOF marker. */
-        if (bytes_received == strlen(EOF_MARKER) && // Must be exactly 3 bytes
-            memcmp(buffer, EOF_MARKER, strlen(EOF_MARKER)) == 0) // Compare with "EOF"
-        {
-            printf("EOF marker received.\n"); // Report end marker
-            break; // Stop receiving
+        if ((size_t)n < 8) {
+            fprintf(stderr, "Invalid packet: too short.\n");
+            continue;
         }
 
-        fwrite(buffer, 1, bytes_received, file); // Save received bytes to file
+        uint32_t seq = ntohl(packet.seq);
+        uint32_t len = ntohl(packet.len);
 
-        printf("Received %zd bytes\n", bytes_received); // Show chunk size
+        if (len > DATA_SIZE || (size_t)n != 8 + len) {
+            fprintf(stderr, "Invalid packet received; ignored.\n");
+            continue;
+        }
+
+        if (seq == expected_seq) {
+            if (len > 0 && fwrite(packet.data, 1, len, file) != len) {
+                perror("fwrite");
+                fclose(file);
+                close(sockfd);
+                return 1;
+            }
+
+            printf("Received packet %u (%u bytes)\n", seq, len);
+            expected_seq++;
+        } else if (expected_seq > 0 && seq == expected_seq - 1) {
+            printf("Duplicate packet %u; not writing again\n", seq);
+        } else {
+            printf("Unexpected packet %u; expected %u\n", seq, expected_seq);
+            continue;
+        }
+
+        Ack ack;
+        ack.ack = htonl(seq);
+
+        if (sendto(sockfd, &ack, sizeof(ack), 0,
+                   (struct sockaddr *)&client, client_len) < 0) {
+            perror("sendto ACK");
+            continue;
+        }
+
+        if (len == 0) {
+            printf("End-of-file packet acknowledged.\n");
+            break;
+        }
     }
 
-    fclose(file); // Flush and close output file
-    close(sockfd); // Release socket
-
-    printf("File received successfully.\n"); // Report completion; no integrity check here
-
-    return 0; // Exit successfully
+    fclose(file);
+    close(sockfd);
+    printf("File received successfully.\n");
+    return 0;
 }

@@ -1,107 +1,147 @@
-#include <stdio.h>      // File handling and printing
-#include <stdlib.h>     // atoi()
-#include <string.h>     // memset(), strlen()
-#include <unistd.h>     // close()
-#include <arpa/inet.h>  // IPv4 conversion and htons()
-#include <sys/socket.h> // socket() and sendto()
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/time.h>
 
-#define BUFFER_SIZE 1400 // Maximum bytes per file chunk
-#define EOF_MARKER "EOF" // Marks the end of the file
+#define BUFFER_SIZE 1400
+#define DATA_SIZE (BUFFER_SIZE - 8)
+#define MAX_RETRIES 10
+#define TIMEOUT_SEC 2
 
-int main(int argc, char *argv[]) // Program entry point
+typedef struct {
+    uint32_t seq;
+    uint32_t len;
+    char data[DATA_SIZE];
+} Packet;
+
+typedef struct {
+    uint32_t ack;
+} Ack;
+
+int main(int argc, char *argv[])
 {
-    if (argc != 4) // Expect IP, port, and filename
-    {
-        printf("Usage: %s <server_ip> <server_port> <file>\n", argv[0]); // Program  name
-        return 1; // Exit with error
+    if (argc != 4) {
+        fprintf(stderr, "Usage: %s <server_ip> <server_port> <file>\n", argv[0]);
+        return 1;
     }
 
-    const char *server_ip = argv[1]; // Server IP address
-    int server_port = atoi(argv[2]); // Convert port to integer
-    const char *filename = argv[3]; // File to send
+    const char *server_ip = argv[1];
+    int port = atoi(argv[2]);
+    const char *filename = argv[3];
 
-    FILE *file = fopen(filename, "rb"); // Open file for binary reading
-
-    if (file == NULL) // Check if file opening failed
-    {
-        perror("Error opening file"); // Print error reason
-        return 1; // Stop the program
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+        perror("fopen");
+        return 1;
     }
 
-    int sockfd = socket(AF_INET, SOCK_DGRAM, 0); // socket() = communication endpoint.     AF_INET = IPv4 addressing.  SOCK_DGRAM=UDP in this program.  SOCK_STREAM = TCP   
-
-    if (sockfd < 0) // Check socket creation failure
-    {
-        perror("Error creating socket"); // Print error
-        fclose(file); // Close the file
-        return 1; // Exit with error
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        perror("socket");
+        fclose(file);
+        return 1;
     }
 
-    struct sockaddr_in server_addr; // Store server address
-    memset(&server_addr, 0, sizeof(server_addr)); // Clear address structure
-
-    server_addr.sin_family = AF_INET; // Use IPv4
-    server_addr.sin_port = htons(server_port); // Convert port to network byte order
-
-    if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) // Convert IP to binary
-    {
-        perror("Invalid server IP address"); // Print error
-        fclose(file); // Close file
-        close(sockfd); // Close socket
-        return 1; // Exit with error
+    struct timeval timeout = {TIMEOUT_SEC, 0};
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO,
+                   &timeout, sizeof(timeout)) < 0) {
+        perror("setsockopt");
+        fclose(file);
+        close(sockfd);
+        return 1;
     }
 
-    char buffer[BUFFER_SIZE]; // Hold one file chunk
-    size_t bytes_read; // Number of bytes read
+    struct sockaddr_in server = {0};
+    server.sin_family = AF_INET;
+    server.sin_port = htons(port);
 
-    printf("Sending file: %s\n", filename); // Show filename
-    printf("Server: %s:%d\n", server_ip, server_port); // Show destination
+    if (inet_pton(AF_INET, server_ip, &server.sin_addr) != 1) {
+        fprintf(stderr, "Invalid server IP address: %s\n", server_ip);
+        fclose(file);
+        close(sockfd);
+        return 1;
+    }
 
-    while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, file)) > 0) // Read file in chunks
-    {
-        ssize_t bytes_sent = sendto( // Send one UDP datagram
-            sockfd, // Socket to use
-            buffer, // Data to send
-            bytes_read, // Number of bytes read
-            0, // Default flags
-            (struct sockaddr *)&server_addr, // Destination address
-            sizeof(server_addr) // Address structure size
-        );
+    uint32_t seq = 0;
+    char data[DATA_SIZE];
 
-        if (bytes_sent < 0) // Check sending error
-        {
-            perror("Error sending data"); // Print error
-            fclose(file); // Close file
-            close(sockfd); // Close socket
-            return 1; // Exit with error
+    printf("Sending file: %s\n", filename);
+
+    for (;;) {
+        size_t len = fread(data, 1, sizeof(data), file);
+
+        if (ferror(file)) {
+            perror("fread");
+            fclose(file);
+            close(sockfd);
+            return 1;
         }
 
-        printf("Sent %zd bytes\n", bytes_sent); // Show bytes sent
+        Packet packet = {0};
+        packet.seq = htonl(seq);
+        packet.len = htonl((uint32_t)len);
+        if (len > 0)
+            memcpy(packet.data, data, len);
+
+        size_t packet_size = 8 + len;
+        int acknowledged = 0;
+
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            ssize_t sent = sendto(sockfd, &packet, packet_size, 0,
+                                  (struct sockaddr *)&server, sizeof(server));
+
+            if (sent != (ssize_t)packet_size) {
+                perror("sendto");
+                fclose(file);
+                close(sockfd);
+                return 1;
+            }
+
+            printf("Sent packet %u (%zu bytes), attempt %d\n",
+                   seq, len, attempt);
+
+            Ack ack;
+            struct sockaddr_in from;
+            socklen_t from_len = sizeof(from);
+
+            ssize_t received = recvfrom(sockfd, &ack, sizeof(ack), 0,
+                                        (struct sockaddr *)&from, &from_len);
+
+            if (received == (ssize_t)sizeof(ack) &&
+                from.sin_addr.s_addr == server.sin_addr.s_addr &&
+                from.sin_port == server.sin_port &&
+                ntohl(ack.ack) == seq) {
+                printf("Received ACK %u\n", seq);
+                acknowledged = 1;
+                break;
+            }
+
+            if (received < 0)
+                printf("ACK timeout; retrying packet %u\n", seq);
+            else
+                printf("Unexpected ACK; retrying packet %u\n", seq);
+        }
+
+        if (!acknowledged) {
+            fprintf(stderr, "Failed: packet %u was not acknowledged.\n", seq);
+            fclose(file);
+            close(sockfd);
+            return 1;
+        }
+
+        if (len == 0) {
+            printf("Empty EOF packet acknowledged. Transfer complete.\n");
+            break;
+        }
+
+        seq++;
     }
 
-    /* Send marker to tell server the file has ended. */
-    ssize_t bytes_sent = sendto( // Send EOF marker
-        sockfd, // Socket to use
-        EOF_MARKER, // "EOF" message
-        strlen(EOF_MARKER), // Send 3 bytes
-        0, // Default flags
-        (struct sockaddr *)&server_addr, // Destination address
-        sizeof(server_addr) // Address structure size
-    );
-
-    if (bytes_sent < 0) // Check EOF send error
-    {
-        perror("Error sending EOF marker"); // Print error
-        fclose(file); // Close file
-        close(sockfd); // Close socket
-        return 1; // Exit with error
-    }
-
-    printf("EOF marker sent.\n"); // Confirm marker was sent
-    printf("File sent successfully.\n"); // Reports sending, not confirmed receipt
-
-    fclose(file); // Close input file
-    close(sockfd); // Release socket
-
-    return 0; // Exit successfully
+    fclose(file);
+    close(sockfd);
+    return 0;
 }
