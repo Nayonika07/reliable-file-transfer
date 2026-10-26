@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) // Program entry point
 {
     if (argc != 4) // Expect IP, port, and filename
     {
-        printf("Usage: %s <server_ip> <server_port> <file>\n", argv[0]); // Show usage
+        printf("Usage: %s <server_ip> <server_port> <file>\n", argv[0]); // Program  name
         return 1; // Exit with error
     }
 
