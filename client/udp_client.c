@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) // Program entry point
         return 1; // Stop the program
     }
 
-    int sockfd = socket(AF_INET, SOCK_DGRAM, 0); // Create IPv4 UDP socket
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0); // socket() = communication endpoint.     AF_INET = IPv4 addressing.  SOCK_DGRAM=UDP in this program.  SOCK_STREAM = TCP   
 
     if (sockfd < 0) // Check socket creation failure
     {
