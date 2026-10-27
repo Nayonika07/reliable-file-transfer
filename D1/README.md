@@ -24,7 +24,6 @@ Data path: `h1 → s1 → h2`
 - `client/udp_client.c` : UDP client
 - `server/udp_server.c` : UDP server
 - `sdn/` : SDN-related files
-- `tests/` : Test documentation
 - `docs/` : Project screenshots
 - `setup-commands.md` : Setup and execution instructions
 
