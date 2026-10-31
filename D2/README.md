@@ -1,81 +1,91 @@
-# D2: Reliable File Transfer Using UDP and SDN
+# D2 - Reliable File Transfer using UDP and SDN
 
 ## 1. Overview
 
-The objective of D2 is to improve the reliability of file transfer over UDP and evaluate the application in an SDN-controlled network environment.
+The objective of this project is to develop a reliable file transfer system using UDP and Software Defined Networking (SDN).
 
-UDP provides connectionless communication but does not guarantee packet delivery, ordering, or retransmission. This project introduces a reliability mechanism at the application layer and will subsequently evaluate its behaviour under different network conditions.
+UDP does not provide built-in reliability mechanisms such as acknowledgements or retransmissions. This project implements reliability at the application layer and integrates an SDN-controlled network using the POX controller and Mininet.
 
-## 2. Objectives
+## 2. Network Architecture
 
-- Improve reliable file delivery using UDP sockets.
-- Implement packet sequence numbers and acknowledgements (ACKs).
-- Introduce timeout-based retransmission for unacknowledged packets.
-- Detect duplicate packets to prevent duplicate data from being written to the output file.
-- Verify file integrity after transfer.
-- Integrate and evaluate the application in a Mininet topology controlled by an SDN controller.
-- Compare performance under different network conditions.
+The project uses the following network topology:
 
-## 3. Implementation Progress
+- **h1:** Sender (UDP client)
+- **s1:** Open vSwitch
+- **h2:** Receiver (UDP server)
+- **c0:** SDN controller connection (POX)
 
-### Component 1: Application Reliability
+The UDP client sends files from h1 to h2 through the Open vSwitch, which is controlled by POX.
 
-**Status: Initial implementation and basic testing completed.**
+## 3. Technologies Used
 
-The client and server applications have been updated to use a simple Stop-and-Wait ARQ approach.
+- C programming
+- UDP socket programming
+- Mininet
+- Open vSwitch (OVS)
+- POX SDN Controller
+- OpenFlow 1.0
+- Ubuntu
 
-Implemented features:
-- Packet sequence numbers.
-- ACK messages from the receiver.
-- A timeout mechanism for waiting for ACKs.
-- Retransmission attempts when an ACK is not received.
-- Duplicate packet detection at the receiver.
-- File transfer using UDP sockets.
-- Basic validation of packet headers and payload lengths.
+## 4. Implementation
 
-### Basic Testing
+### UDP Client and Server
 
-A local file transfer was tested using the UDP client and server.
+The client and server are implemented in C using UDP sockets.
 
-The received file was compared with the original using the `cmp` command. The command returned exit status `0`, indicating that the two files matched exactly.
+The implementation includes:
+- File reading and transmission in chunks.
+- Sequence numbers for packet identification.
+- Acknowledgements (ACKs).
+- Retransmission mechanism for reliable delivery.
+- Binary file handling.
 
-**Note:** Packet-loss and retransmission behaviour still require dedicated testing. Additional protocol edge cases will also be checked before the reliability component is considered complete.
+### SDN Integration
 
-## 4. Testing Evidence
+POX is used as the SDN controller.
 
-Screenshots and test evidence will be maintained in the `D2/screenshots/` directory.
+Mininet is configured with an Open vSwitch connected to the POX controller. The network topology consists of two hosts communicating through the switch.
 
-Planned evidence includes:
-- Successful compilation of the updated client and server.
-- Client output showing packet transmission and ACK reception.
-- Server output showing packet reception.
+## 5. Testing and Results
+
+The following tests have been performed:
+
+| Test | Status |
+|---|---|
+| POX controller startup | Successful |
+| Mininet topology creation | Successful |
+| Switch connection to POX | Successful |
+| Host connectivity using pingall | Successful |
+| UDP file transfer through Mininet | Successful |
+| Image file integrity verification using cmp | Successful |
+| Audio file transfer | In progress |
+| Video file transfer | Pending |
+| Packet-loss and retransmission testing | Pending |
+
+### Successful Image Transfer
+
+An image file was transferred from h1 to h2 through the POX-controlled Mininet topology.
+
+The received file was verified against the original using the `cmp` command, confirming that both files matched.
+
+## 6. Evidence
+
+Screenshots and test results are maintained in this directory to document:
+
+- POX controller execution.
+- Mininet topology and switch connectivity.
+- Successful host communication.
+- UDP file transfer.
 - File integrity verification.
-- Retransmission behaviour under simulated packet loss.
-- Further tests under Mininet and SDN control.
 
-## 5. Remaining Work
+## 7. Future Work
 
-- Test transfers involving larger files and different file sizes.
-- Simulate packet loss and verify retransmission behaviour.
-- Test timeout and retry-limit handling.
-- Verify correct handling of duplicate packets and end-of-file acknowledgement.
-- Integrate the updated application with the Mininet topology and SDN controller.
-- Evaluate performance under multiple network conditions.
-- Document the experimental results and compare the relevant measurements.
+- Test audio and video file transfers.
+- Perform controlled packet-loss experiments.
+- Evaluate retransmission behaviour.
+- Record transfer performance and packet statistics.
+- Improve the user interface for file selection and transfer monitoring.
 
-## 6. Project Structure
+## 8. Conclusion
 
-- `client/`: UDP client implementation.
-- `server/`: UDP server implementation.
-- `sdn/`: SDN controller code and related configuration.
-- `tests/`: Test files and testing scripts, as applicable.
-- `screenshots/`: Existing project evidence.
-- `D2/`: D2 progress documentation and supporting evidence.
-
-## 7. Reproduction
-
-Detailed setup and execution instructions, test commands, screenshots, and final results will be added as the implementation progresses.
-
-## 8. Final D2 Summary
-
-This section will be updated after all D2 components have been implemented and tested. It will summarise the final functionality, SDN integration, challenging network scenarios, performance evaluation, and conclusions.
+The D2 implementation demonstrates UDP-based file transfer through a Mininet network controlled by the POX SDN controller. Initial image transfer and file integrity verification have been completed successfully. Further testing will evaluate different file formats and reliability under packet-loss conditions.
