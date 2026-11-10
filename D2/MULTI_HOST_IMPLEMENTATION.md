@@ -77,3 +77,29 @@ Automatic rerouting after link failure is subject to separate validation.
 ## 9. Conclusion
 
 The multi-host Mininet environment provides a test platform for evaluating reliable communication and dynamic SDN routing under normal and link-failure conditions.
+
+## 11. Performance Evaluation
+
+The network was evaluated under normal routing and after failure of the primary link.
+
+### Normal Route
+
+- Route: s1 → s2 → s4
+- Packets transmitted: 10
+- Packets received: 10
+- Packet loss: 0%
+- Average RTT: 10.755 ms
+
+### Backup Route
+
+- Route: s1 → s3 → s4
+- Packets transmitted: 20
+- Packets received: 20
+- Packet loss: 0%
+- Average RTT: 6.932 ms
+
+### Observation
+
+The controller successfully recalculated the route after the primary link failed. The backup route maintained connectivity between h1 and h2 without packet loss in the recorded test.
+
+The measurements are preliminary because the two tests used different packet counts and were not conducted under identical conditions. Further repeated tests are required for a controlled performance comparison.
