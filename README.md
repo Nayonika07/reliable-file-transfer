@@ -218,15 +218,15 @@ All project documentation and testing evidence are maintained in the `docs/` dir
 - `D2_commands.txt` – Project setup and execution commands.
 - `README.md` – Main project overview and documentation.
 
-## 11. Team Contributions
+## Team Contributions
 
 | Team Member | Contributions |
 |---|---|
-| **Member 1 Nayonika V** | Project planning and coordination, UDP client implementation, GUI development, file-transfer testing, SDN integration and overall D2 implementation. |
-| **Member 2 (Pooja)** | Prepared and organised D1 and D2 documentation, maintained project documentation, organised test evidence and screenshots, documented Mininet test results and OpenFlow flow-table outputs, and supported preparation of project deliverables D1 and D2. |
-| **Member 3 (Prajna)** | Implemented the UDP server-side code during D1. |
+| **Member 1 (Nayonika V)** | Project planning and coordination, UDP client implementation, GUI development, file-transfer testing, SDN integration, Mininet topology setup and testing, and overall D2 implementation. |
+| **Member 2 (Pooja)** | D1 and D2 documentation, organisation of screenshots and test evidence, documentation of Mininet results and OpenFlow flow-table outputs, and preparation of project deliverables. |
+| **Member 3 (Prajna)** | Implementation of the UDP server-side code during D1. |
 
-Contributions are documented according to the work completed by each team member.
+*Contributions are listed based on the work completed by each team member.*
 
 ## 12. Future Enhancements
 
